@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mmu.h"
+#include "bus.h"
 #include "types.h"
 
 class SM83 {
@@ -21,7 +21,7 @@ public:
         Joypad = 0x0060,
     };
 
-    SM83(MMU& mmu);
+    SM83(Bus& bus);
 
     void Reset();
     u8 Tick();
@@ -39,8 +39,8 @@ public:
     void StackPush(u16* word_reg);
     void StackPop(u16* word_reg);
 
-    bool ExecuteOpcode(const u8 opcode, u16 pc_at_opcode);
-    bool ExecuteCBOpcode(const u8 opcode, u16 pc_at_opcode);
+    bool ExecuteOpcode(const u8 opcode);
+    bool ExecuteCBOpcode(const u8 opcode);
     void HandleInterrupts();
 
     void AdvanceCycles(u8 cycles);
@@ -79,7 +79,9 @@ private:
     bool ime;
     bool ime_delay; // EI enables interrupts one instruction after
 
-    MMU& mmu;
+    bool halted;
+
+    Bus& bus;
 
     // illegal instruction
     void ill(const u8 opcode);
@@ -94,6 +96,8 @@ private:
     void add_hl_bc();
     void add_hl_de();
     void add_hl_hl();
+    void add_hl_sp();
+    void add_sp_d8();
 
     void and_d8();
     void and_r(u8 reg);
@@ -102,8 +106,10 @@ private:
     void bit_dhl(u8 bit);
 
     void call_a16();
+    void call_c_a16();
     void call_nc_a16();
     void call_nz_a16();
+    void call_z_a16();
 
     void ccf();
 
@@ -126,10 +132,13 @@ private:
     void dec_h();
     void dec_hl();
     void dec_l();
+    void dec_sp();
 
     void di();
 
     void ei();
+
+    void halt();
 
     void inc_a();
     void inc_b();
@@ -145,7 +154,9 @@ private:
     void inc_sp();
 
     void jp_a16();
+    void jp_c_a16();
     void jp_hl();
+    void jp_nc_a16();
     void jp_nz_a16();
     void jp_z_a16();
 
@@ -155,93 +166,34 @@ private:
     void jr_nz_r8();
     void jr_z_r8();
 
-    void ld_a_a();
-    void ld_a_b();
-    void ld_a_c();
-    void ld_a_d();
     void ld_a_d8();
     void ld_a_da16();
     void ld_a_dbc();
+    void ld_a_dc();
     void ld_a_dde();
-    void ld_a_dhl();
     void ld_a_dhld();
     void ld_a_dhli();
-    void ld_a_e();
-    void ld_a_h();
-    void ld_a_l();
-    void ld_b_a();
-    void ld_b_b();
-    void ld_b_c();
-    void ld_b_d();
     void ld_b_d8();
-    void ld_b_dhl();
-    void ld_b_e();
-    void ld_b_h();
-    void ld_b_l();
     void ld_bc_d16();
-    void ld_c_a();
-    void ld_c_b();
-    void ld_c_c();
-    void ld_c_d();
     void ld_c_d8();
-    void ld_c_dhl();
-    void ld_c_e();
-    void ld_c_h();
-    void ld_c_l();
-    void ld_d_a();
-    void ld_d_b();
-    void ld_d_c();
-    void ld_d_d();
     void ld_d_d8();
-    void ld_d_dhl();
-    void ld_d_e();
-    void ld_d_h();
-    void ld_d_l();
     void ld_da16_a();
     void ld_da16_sp();
     void ld_dbc_a();
     void ld_dc_a();
     void ld_dde_a();
     void ld_de_d16();
-    void ld_dhl_a();
-    void ld_dhl_b();
-    void ld_dhl_c();
-    void ld_dhl_d();
     void ld_dhl_d8();
-    void ld_dhl_e();
-    void ld_dhl_h();
-    void ld_dhl_l();
+    void ld_dhl_r(u8 reg);
     void ld_dhld_a();
     void ld_dhli_a();
-    void ld_e_a();
-    void ld_e_b();
-    void ld_e_c();
-    void ld_e_d();
     void ld_e_d8();
-    void ld_e_dhl();
-    void ld_e_e();
-    void ld_e_h();
-    void ld_e_l();
-    void ld_h_a();
-    void ld_h_b();
-    void ld_h_c();
-    void ld_h_d();
     void ld_h_d8();
-    void ld_h_dhl();
-    void ld_h_e();
-    void ld_h_h();
-    void ld_h_l();
     void ld_hl_d16();
     void ld_hl_sp_d8();
-    void ld_l_a();
-    void ld_l_b();
-    void ld_l_c();
-    void ld_l_d();
     void ld_l_d8();
-    void ld_l_dhl();
-    void ld_l_e();
-    void ld_l_h();
-    void ld_l_l();
+    void ld_r_r(u8* left, u8* right);
+    void ld_r_dhl(u8* reg);
     void ld_sp_d16();
     void ld_sp_hl();
     void ldh_a_da8();
