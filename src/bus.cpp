@@ -213,6 +213,7 @@ void Bus::WriteMBC(u8 mbc_type, u16 addr, u8 value) {
             }
             return;
         case 0x10:
+        case 0x11:
         case 0x13:
             switch (addr & 0xF000) {
                 case 0x0000:
@@ -385,10 +386,12 @@ void Bus::WriteIO(u16 addr, u8 value) {
             return;
         case 0xFF42:
             LDEBUG("writing 0x%02X to SCY (0xFF42)", value);
+            ppu.SetSCY(value);
             memory[addr] = value;
             return;
         case 0xFF43:
             LDEBUG("writing 0x%02X to SCX (0xFF43)", value);
+            ppu.SetSCX(value);
             memory[addr] = value;
             return;
         case 0xFF46: {
@@ -447,4 +450,8 @@ void Bus::DumpMemoryToFile() {
     // }
 
     fclose(file);
+}
+
+Joypad* Bus::GetJoypad() {
+    return &joypad;
 }
