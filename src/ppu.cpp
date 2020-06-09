@@ -2,7 +2,7 @@
 #include "bus.h"
 #include "logging.h"
 #include "ppu.h"
-#include "frontend/sdl.h"
+#include "frontend/frontend.h"
 
 PPU::PPU(Bus& bus)
     : bus(bus) {
@@ -10,13 +10,13 @@ PPU::PPU(Bus& bus)
     ly = 0x00;
     stat = 0x80;
     mode = Mode::AccessOAM;
-
-    framebuffer = static_cast<PPU::Color*>(malloc(160 * 144 * sizeof(PPU::Color)));
 }
 
-void PPU::Tick(u8 cycles) {
+void PPU::AdvanceCycles(u64 cycles) {
     vcycles += cycles;
+}
 
+void PPU::Tick() {
     switch (mode) {
         case Mode::AccessOAM:
             // TODO: block memory access to VRAM and OAM during this mode
@@ -36,7 +36,7 @@ void PPU::Tick(u8 cycles) {
 
             if (stat & (1 << 3)) {
                 // STAT interrupt
-                bus.Write8(0xFF0F, bus.Read8(0xFF0F) | 0x2);
+                bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
             }
 
             vcycles %= 172;
@@ -47,7 +47,7 @@ void PPU::Tick(u8 cycles) {
             bool lyc_equals_ly = (lyc == ly);
             if (lyc_interrupt && lyc_equals_ly) {
                 // LY conincidence interrupt
-                bus.Write8(0xFF0F, bus.Read8(0xFF0F) | 0x2);
+                bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
             }
 
             if (lyc_equals_ly) {
@@ -71,7 +71,7 @@ void PPU::Tick(u8 cycles) {
                 mode = Mode::VBlank;
                 stat &= ~0x3;
                 stat |= 0x1;
-                bus.Write8(0xFF0F, bus.Read8(0xFF0F) | 0x1);
+                bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x1, false);
             } else {
                 stat &= ~0x3;
                 stat |= 0x2;
@@ -91,7 +91,7 @@ void PPU::Tick(u8 cycles) {
                 // TODO: draw
                 RenderSprites();
                 DrawFramebuffer(framebuffer);
-                HandleSDLEvents(bus.GetJoypad());
+                HandleEvents(bus.GetJoypad());
                 ly = 0;
                 mode = Mode::AccessOAM;
                 stat &= ~0x3;
@@ -112,11 +112,11 @@ void PPU::UpdateTile(u16 addr) {
     u8 byte1 = 0;
     u8 byte2 = 0;
     if (addr % 2 == 0) {
-        byte1 = bus.Read8(addr);
-        byte2 = bus.Read8(addr + 1);
+        byte1 = bus.Read8(addr, false);
+        byte2 = bus.Read8(addr + 1, false);
     } else {
-        byte1 = bus.Read8(addr - 1);
-        byte2 = bus.Read8(addr);
+        byte1 = bus.Read8(addr - 1, false);
+        byte2 = bus.Read8(addr, false);
     }
     u16 index = addr - 0x8000;
 
@@ -150,7 +150,7 @@ void PPU::RenderBackgroundScanline() {
         u16 bg_x = scroll_x % 256;
         u16 bg_y = scroll_y % 256;
         u16 tile_offset = offset + (bg_x / 8) + (bg_y / 8 * 32);
-        u16 tile_id = bus.Read8(tile_offset);
+        u16 tile_id = bus.Read8(tile_offset, false);
         if (is_signed && tile_id < 0x80) {
             tile_id += 0x100;
         }
@@ -174,10 +174,10 @@ void PPU::RenderSprites() {
     // TODO: we are limited to 10 sprites per scanline.
     for (u8 sprite_index = 0; sprite_index < 160 / 4; sprite_index++) {
         u16 oam_address = 0xFE00 + (sprite_index * 4);
-        u8 y = bus.Read8(oam_address);
-        u8 x = bus.Read8(oam_address + 1);
-        [[maybe_unused]] u8 tile_index = bus.Read8(oam_address + 2);
-        u8 attributes = bus.Read8(oam_address + 3);
+        u8 y = bus.Read8(oam_address, false);
+        u8 x = bus.Read8(oam_address + 1, false);
+        [[maybe_unused]] u8 tile_index = bus.Read8(oam_address + 2, false);
+        u8 attributes = bus.Read8(oam_address + 3, false);
 
         if (y == 0 || y >= 144 + 16) {
             continue;
@@ -196,46 +196,6 @@ void PPU::RenderSprites() {
 
         // TODO: actually draw sprites
     }
-}
-
-u8 PPU::GetLCDC() {
-    return lcdc;
-}
-
-void PPU::SetLCDC(u8 value) {
-    lcdc = value;
-}
-
-u8 PPU::GetSTAT() {
-    return stat;
-}
-
-void PPU::SetSTAT(u8 value) {
-    stat = value;
-}
-
-u8 PPU::GetSCY() {
-    return scy;
-}
-
-void PPU::SetSCY(u8 value) {
-    scy = value;
-}
-
-u8 PPU::GetSCX() {
-    return scx;
-}
-
-void PPU::SetSCX(u8 value) {
-    scx = value;
-}
-
-u8 PPU::GetLY() {
-    return ly;
-}
-
-u8 PPU::GetLYC() {
-    return lyc;
 }
 
 bool PPU::IsLCDEnabled() {

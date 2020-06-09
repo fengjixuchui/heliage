@@ -14,7 +14,7 @@ SDL_Event event;
 
 bool running = false;
 
-void HandleSDLEvents(Joypad* joypad) {
+void HandleEvents(Joypad* joypad) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_KEYDOWN:
@@ -53,7 +53,7 @@ u32 GetARGBColor(PPU::Color pixel) {
     return 0xFF << 24 | color << 16 | color << 8 | color;
 }
 
-void DrawFramebuffer(PPU::Color* framebuffer) {
+void DrawFramebuffer(std::array<PPU::Color, 160 * 144>& framebuffer) {
     SDL_RenderClear(renderer);
 
     void* pixels;

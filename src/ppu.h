@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "types.h"
 
 class Bus;
@@ -29,22 +30,30 @@ public:
 
     PPU(Bus& bus);
 
-    void Tick(u8 cycles);
+    void AdvanceCycles(u64 cycles);
+
+    void Tick();
     void UpdateTile(u16 addr);
     void RenderScanline();
     void RenderBackgroundScanline();
     void RenderSprites();
 
-    u8 GetLCDC();
-    void SetLCDC(u8 value);
-    u8 GetSTAT();
-    void SetSTAT(u8 value);
-    u8 GetSCY();
-    void SetSCY(u8 value);
-    u8 GetSCX();
-    void SetSCX(u8 value);
-    u8 GetLY();
-    u8 GetLYC();
+    u8 GetLCDC() { return lcdc; }
+    void SetLCDC(u8 value) { lcdc = value; }
+
+    u8 GetSTAT() { return stat; }
+    void SetSTAT(u8 value) { stat = value; }
+
+    u8 GetSCY() { return scy; }
+    void SetSCY(u8 value) { scy = value; }
+
+    u8 GetSCX() { return scx; }
+    void SetSCX(u8 value) { scx = value; }
+
+    u8 GetLY() { return ly; }
+
+    u8 GetLYC() { return lyc; }
+    void SetLYC(u8 value) { lyc = value; }
 
     bool IsLCDEnabled();
     u16 GetWindowTileMapDisplayOffset();
@@ -65,6 +74,6 @@ private:
     u8 lyc;
     Mode mode;
 
-    Color* framebuffer = {};
+    std::array<Color, 160 * 144> framebuffer;
     Color tiles[384][8][8];
 };

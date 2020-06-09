@@ -4,8 +4,8 @@
 #include "../ppu.h"
 #include "../types.h"
 
-void HandleSDLEvents(Joypad* joypad);
+void HandleEvents(Joypad* joypad);
 u32 GetARGBColor(PPU::Color pixel);
-void DrawFramebuffer(PPU::Color* framebuffer);
+void DrawFramebuffer(std::array<PPU::Color, 160 * 144>& framebuffer);
 void Shutdown();
 int main_SDL(char* argv[]);

@@ -1,5 +1,5 @@
 #include <cstdio>
-#include "frontend/sdl.h"
+#include "frontend/frontend.h"
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -7,6 +7,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // TODO: make an imgui frontend
+#if defined(HELIAGE_FRONTEND_SDL)
     return main_SDL(argv);
+#elif defined(HELIAGE_FRONTEND_IMGUI)
+    return main_imgui(argv);
+#else
+    printf("you didn't #define a frontend! :(\n");
+    return 0;
+#endif
 }
