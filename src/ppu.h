@@ -27,9 +27,6 @@ public:
 
     void Tick();
     void UpdateTile(u16 addr);
-    void RenderScanline();
-    void RenderBackgroundScanline();
-    void RenderSprites();
 
     u8 GetLCDC() { return lcdc; }
     void SetLCDC(u8 value) { lcdc = value; }
@@ -50,6 +47,12 @@ public:
 
     void SetBGWindowPalette(u8 value);
 
+    u8 GetWY() { return wy; }
+    void SetWY(u8 value) { wy = value; }
+
+    u8 GetWX() { return wx; }
+    void SetWX(u8 value) { wx = value; }
+
     bool IsLCDEnabled();
     u16 GetWindowTileMapDisplayOffset();
     bool IsWindowDisplayEnabled();
@@ -58,6 +61,9 @@ public:
     bool AreSpritesDoubleHeight();
     bool IsSpriteDisplayEnabled();
     bool IsBGDisplayEnabled();
+
+    void SetBGDrawingEnabled(bool enabled) { background_drawing_enabled = enabled; }
+    void SetWindowDrawingEnabled(bool enabled) { window_drawing_enabled = enabled; }
 private:
     Bus& bus;
     u64 vcycles;
@@ -67,7 +73,12 @@ private:
     u8 scy;
     u8 ly;
     u8 lyc;
+    u8 wy;
+    u8 wx;
     Mode mode;
+
+    bool lyc_interrupt_fired = false;
+    void CheckForLYCoincidence();
 
     struct {
         Color three;
@@ -78,4 +89,16 @@ private:
 
     std::array<Color, 160 * 144> framebuffer;
     Color tiles[384][8][8];
+
+    Color GetColorFromPalette(Color color);
+
+    void RenderScanline();
+    void RenderBackgroundScanline();
+    void RenderWindowScanline();
+    void RenderSprites();
+
+    u8 window_line_counter = 0;
+
+    bool window_drawing_enabled = true;
+    bool background_drawing_enabled = true;
 };

@@ -16,12 +16,11 @@ public:
 
     Bus* GetBus();
     Joypad* GetJoypad();
+    PPU* GetPPU();
 private:
     Bus bus;
     Joypad joypad;
     PPU ppu;
     SM83 sm83;
     Timer timer;
-
-    u64 cycles;
 };

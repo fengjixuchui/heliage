@@ -16,6 +16,21 @@ void PPU::AdvanceCycles(u64 cycles) {
     vcycles += cycles;
 }
 
+void PPU::CheckForLYCoincidence() {
+    stat &= ~0x4;
+
+    if (ly != lyc) {
+        lyc_interrupt_fired = false;
+        return;
+    }
+
+    stat |= 0x4;
+    if (stat & (1 << 6) && !lyc_interrupt_fired) {
+        lyc_interrupt_fired = true;
+        bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
+    }
+}
+
 void PPU::Tick() {
     switch (mode) {
         case Mode::AccessOAM:
@@ -27,6 +42,8 @@ void PPU::Tick() {
             vcycles %= 80;
             stat |= 0x3;
             mode = Mode::AccessVRAM;
+
+            CheckForLYCoincidence();
             break;
         case Mode::AccessVRAM: {
             // TODO: block memory access to VRAM during this mode
@@ -40,21 +57,9 @@ void PPU::Tick() {
             }
 
             vcycles %= 172;
-
-            stat &= ~0x7;
-
-            bool lyc_interrupt = stat & (1 << 6);
-            bool lyc_equals_ly = (lyc == ly);
-            if (lyc_interrupt && lyc_equals_ly) {
-                // LY conincidence interrupt
-                bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
-            }
-
-            if (lyc_equals_ly) {
-                stat |= 0x7;
-            }
-
+            stat &= ~0x3;
             mode = Mode::HBlank;
+            CheckForLYCoincidence();
         }
             break;
         case Mode::HBlank:
@@ -67,15 +72,25 @@ void PPU::Tick() {
             ly++;
             vcycles %= 204;
 
+            CheckForLYCoincidence();
+
             if (ly == 144) {
                 mode = Mode::VBlank;
                 stat &= ~0x3;
                 stat |= 0x1;
                 bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x1, false);
+
+                if (stat & (1 << 4)) {
+                    bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
+                }
             } else {
                 stat &= ~0x3;
                 stat |= 0x2;
                 mode = Mode::AccessOAM;
+
+                if (stat & (1 << 5)) {
+                    bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
+                }
             }
 
             break;
@@ -88,18 +103,30 @@ void PPU::Tick() {
             vcycles %= 456;
 
             if (ly == 154) {
-                // TODO: draw
+                // TODO: draw sprites
                 RenderSprites();
+
                 DrawFramebuffer(framebuffer);
+
+                // Clear the framebuffer
+                std::fill(framebuffer.begin(), framebuffer.end(), Color::White);
+
                 HandleEvents(bus.GetJoypad());
                 ly = 0;
+                window_line_counter = 0;
                 mode = Mode::AccessOAM;
                 stat &= ~0x3;
                 stat |= 0x2;
+
+                if (stat & (1 << 5)) {
+                    bus.Write8(0xFF0F, bus.Read8(0xFF0F, false) | 0x2, false);
+                }
             }
 
+            CheckForLYCoincidence();
             break;
         default:
+            UNREACHABLE_MSG("invalid PPU mode %u", static_cast<u8>(mode));
             break;
     }
 }
@@ -130,12 +157,12 @@ void PPU::UpdateTile(u16 addr) {
 }
 
 void PPU::RenderScanline() {
-    if (IsBGDisplayEnabled()) {
+    if (IsBGDisplayEnabled() && background_drawing_enabled) {
         RenderBackgroundScanline();
     }
 
-    if (IsWindowDisplayEnabled()) {
-        // TODO: render window
+    if (IsWindowDisplayEnabled() && window_drawing_enabled) {
+        RenderWindowScanline();
     }
 }
 
@@ -157,26 +184,49 @@ void PPU::RenderBackgroundScanline() {
         u8 tile_y = bg_y % 8;
         u8 tile_x = bg_x % 8;
 
-        Color color = tiles[tile_id][tile_y][tile_x];
-        switch (static_cast<u8>(color)) {
-            case 0b00:
-                color = bg_window_palette.zero;
-                break;
-            case 0b01:
-                color = bg_window_palette.one;
-                break;
-            case 0b10:
-                color = bg_window_palette.two;
-                break;
-            case 0b11:
-                color = bg_window_palette.three;
-                break;
-            default:
-                break;
-        }
-
+        Color color = GetColorFromPalette(tiles[tile_id][tile_y][tile_x]);
         framebuffer[160 * screen_y + screen_x] = color;
     }
+}
+
+void PPU::RenderWindowScanline() {
+    if (ly < wy) {
+        return;
+    }
+
+    if (wx < 7) {
+        // FIXME: Hack. Fixes Link's Awakening's HUD.
+        wx = 7;
+    }
+
+    if (wx >= 167) {
+        return;
+    }
+
+    if (wy >= 144) {
+        return;
+    }
+
+    u16 offset = GetWindowTileMapDisplayOffset();
+    bool is_signed = (GetBGWindowTileDataOffset() == 0x8800);
+
+    for (u8 screen_x = wx - 7; screen_x < 160; screen_x++) {
+        u8 scroll_x = screen_x - (wx - 7);
+        u8 scroll_y = window_line_counter;
+        u16 tile_offset = offset + (scroll_x / 8) + (scroll_y / 8 * 32);
+        u16 tile_id = bus.Read8(tile_offset, false);
+        if (is_signed && tile_id < 0x80) {
+            tile_id += 0x100;
+        }
+
+        u8 tile_y = scroll_y % 8;
+        u8 tile_x = scroll_x % 8;
+
+        Color color = GetColorFromPalette(tiles[tile_id][tile_y][tile_x]);
+        framebuffer[160 * ly + screen_x] = color;
+    }
+
+    window_line_counter++;
 }
 
 void PPU::RenderSprites() {
@@ -226,6 +276,21 @@ void PPU::SetBGWindowPalette(u8 value) {
                                                        static_cast<u8>(bg_window_palette.two),
                                                        static_cast<u8>(bg_window_palette.one),
                                                        static_cast<u8>(bg_window_palette.zero));
+}
+
+PPU::Color PPU::GetColorFromPalette(Color color) {
+    switch (static_cast<u8>(color)) {
+        case 0b00:
+            return bg_window_palette.zero;
+        case 0b01:
+            return bg_window_palette.one;
+        case 0b10:
+            return bg_window_palette.two;
+        case 0b11:
+            return bg_window_palette.three;
+        default:
+            UNREACHABLE_MSG("invalid PPU color %u", static_cast<u8>(color));
+    }
 }
 
 bool PPU::IsLCDEnabled() {

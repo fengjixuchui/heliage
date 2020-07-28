@@ -4,15 +4,12 @@
 #include "ppu.h"
 
 GB::GB(BootROM bootrom, Cartridge cartridge)
-    : bus(bootrom, cartridge, joypad, ppu, timer), joypad(bus), ppu(bus), sm83(bus, timer), timer(bus, ppu) {
+    : bus(bootrom, cartridge, joypad, ppu, timer), ppu(bus), sm83(bus, timer), timer(bus, ppu) {
     LINFO("powering on...");
-    cycles = 0;
 }
 
 void GB::Run() {
     sm83.Tick();
-    ppu.Tick();
-    timer.Tick();
 }
 
 Bus* GB::GetBus() {
@@ -21,4 +18,8 @@ Bus* GB::GetBus() {
 
 Joypad* GB::GetJoypad() {
     return &joypad;
+}
+
+PPU* GB::GetPPU() {
+    return &ppu;
 }

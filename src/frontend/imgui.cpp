@@ -15,7 +15,10 @@
 std::thread emu_thread;
 std::array<u32, 160 * 144> fb;
 bool done = false;
-bool power = false;
+bool power = true;
+
+bool debugger_draw_background = true;
+bool debugger_draw_window = true;
 
 void FramebufferToTexture(int* texture_width, int* texture_height, GLuint* framebuffer_texture) {
     GLuint texture;
@@ -176,6 +179,26 @@ int main_imgui(char* argv[]) {
             GLuint framebuffer_texture = 0;
             FramebufferToTexture(&texture_width, &texture_height, &framebuffer_texture);
             ImGui::Image((void*)(intptr_t)framebuffer_texture, ImVec2(texture_width, texture_height));
+
+            ImGui::End();
+        }
+
+        {
+            ImGui::Begin("Debugger");
+
+            if (ImGui::Button("Step")) {
+                gb.Run();
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::Checkbox("Draw background", &debugger_draw_background)) {
+                gb.GetPPU()->SetBGDrawingEnabled(debugger_draw_background);
+            }
+
+            if (ImGui::Checkbox("Draw window", &debugger_draw_window)) {
+                gb.GetPPU()->SetWindowDrawingEnabled(debugger_draw_window);
+            }
 
             ImGui::End();
         }
